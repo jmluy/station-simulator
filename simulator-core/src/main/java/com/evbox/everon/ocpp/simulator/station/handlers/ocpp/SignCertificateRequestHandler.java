@@ -19,6 +19,9 @@ import javax.security.auth.x500.X500Principal;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.security.*;
+import java.util.Optional;
+
+import static com.evbox.everon.ocpp.simulator.station.support.CertificateUtils.generateKeyPair;
 
 @Slf4j
 public class SignCertificateRequestHandler implements Runnable {
@@ -35,21 +38,17 @@ public class SignCertificateRequestHandler implements Runnable {
 
     @Override
     public void run() {
-        try {
-            Security.addProvider(new BouncyCastleProvider());
+        Optional.ofNullable(generateKeyPair()).ifPresent((keyPair) -> {
+            try {
+                String csr = generatePKCS10(keyPair.getPublic(), keyPair.getPrivate());
+                stationStore.setStationPublicKey(keyPair.getPublic());
+                stationStore.setStationPrivateKey(keyPair.getPrivate());
+                stationMessageSender.sendSignCertificateRequest(csr);
+            } catch (Exception e) {
+               log.debug("Error while creating the CSR", e);
+            }
+        });
 
-            ECParameterSpec ecSpec = ECNamedCurveTable.getParameterSpec("prime256v1");
-            KeyPairGenerator g = KeyPairGenerator.getInstance("ECDSA", "BC");
-            g.initialize(ecSpec, new SecureRandom());
-            KeyPair keyPair = g.generateKeyPair();
-            String csr = generatePKCS10(keyPair.getPublic(), keyPair.getPrivate());
-
-            stationStore.setStationPublicKey(keyPair.getPublic());
-            stationStore.setStationPrivateKey(keyPair.getPrivate());
-            stationMessageSender.sendSignCertificateRequest(csr);
-        } catch (Exception e) {
-            log.debug("Error while creating the CSR", e);
-        }
 
     }
 
